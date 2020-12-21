@@ -1,0 +1,708 @@
+---
+title: "TP 3 unmarked"
+author: "Olivier Gimenez"
+date: "19/12/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+# Partie 1
+
+## 1. Introduction
+
+On charge le package `unmarked`.
+```{r}
+library(unmarked)
+```
+
+## 2. Les données
+
+On lit les données lézard ocelés. 
+```{r}
+dat <- read.csv2("dat/lezard-ocelle-oleron-2007-pa.csv")
+```
+
+Jette un coup d'oeil.
+```{r}
+head(dat)
+```
+
+Dimensions.
+```{r}
+dim(dat)
+```
+
+On crée le jeu de données. 
+```{r}
+lezard <- unmarkedFrameOccu(y = cbind(dat$presence_R1, dat$presence_R2, dat$presence_R3))
+```
+
+Coup d'oeil.
+```{r}
+head(lezard)
+```
+
+Coup d'oeil.
+```{r}
+summary(lezard)
+```
+
+Coup d'oeil.
+```{r}
+plot(lezard)
+```
+
+## 3. Modèle $(\psi, p)$
+
+Aide de la fonction `occu`.
+```{r}
+?occu
+```
+
+Ajuste premier modèle, avec détection d'abord, puis occupancy. Ici ces paramètres sont constants. 
+```{r}
+fm <- occu(~ 1 ~ 1, lezard)
+```
+
+Les estimations sont sur échelle logit.
+```{r}
+fm
+```
+
+On les back-transforme.
+```{r}
+#names(fm)
+#fm['state']
+#fm['det']
+backTransform(fm, type ='state')
+backTransform(fm, type ='det')
+
+confint(backTransform(fm, type='state'))
+confint(backTransform(fm, type='det'))
+```
+
+Conditional occupancy.
+```{r}
+re <- ranef(fm)
+re
+```
+
+## 4. Modèle $(\psi, p_t)$
+
+On crée un variable pour l'effet du temps.
+```{r}
+occ <- matrix(c('occ 1','occ 2','occ 3'),
+              nrow = 70, # nrow(lezard@y), 
+              ncol = 3, #ncol(lezard), 
+              byrow = TRUE)
+```
+
+On refait le jeu de données.
+```{r}
+lezard <- unmarkedFrameOccu(y = cbind(dat$presence_R1, dat$presence_R2, dat$presence_R3),
+                            obsCovs = list(occ = occ))
+```
+
+
+Données?
+```{r}
+summary(lezard)
+```
+
+Ajuste modèle.
+```{r}
+fm1 <- occu(~ occ ~ 1, lezard)
+```
+
+Les estimations sont sur échelle logit.
+```{r}
+fm1
+```
+
+On back-transforme l'occupancy.
+```{r}
+backTransform(fm1, type = 'state')
+confint(backTransform(fm1, type='state'))
+```
+
+Et pour la détection.
+```{r}
+nd <- data.frame(occ = c('occ 1','occ 2','occ 3'))
+predict(fm1, type = 'det', newdata = nd)
+```
+
+Conditional occupancy.
+```{r}
+ranef(fm1)
+```
+
+## 5. Modèle $(\psi_{\mbox{lapin}}, p)$
+
+On récupère la variable lapin.
+```{r}
+site.covs <- data.frame(lapin = dat$nb_terriers_lapins)
+site.covs
+```
+
+On refait le jeu de données.
+```{r}
+lezard <- unmarkedFrameOccu(y = cbind(dat$presence_R1, dat$presence_R2, dat$presence_R3),
+                            siteCovs = site.covs)
+```
+
+
+Données?
+```{r}
+summary(lezard)
+```
+
+Ajuste modèle.
+```{r}
+fm2 <- occu(~ 1 ~ lapin, lezard)
+```
+
+Les estimations sont sur échelle logit.
+```{r}
+fm2
+```
+
+On back-transforme la détection.
+```{r}
+backTransform(fm2, type = 'det')
+confint(backTransform(fm2, type='det'))
+```
+
+Et pour l'occupancy.
+```{r}
+nd <- data.frame(lapin = seq(min(dat$nb_terriers_lapins), max(dat$nb_terriers_lapins), length = 50))
+psi_pred <- predict(fm2, type = 'state', newdata = nd)
+psi_pred
+```
+
+Visualise.
+```{r}
+plot(nd$lapin, 
+     psi_pred[,1], 
+     type = "l", 
+     lwd = 3, 
+     xlab = "nombre de terriers de lapin", 
+     ylab = "probabilité estimée d'occupancy du lézard")
+```
+
+Conditional occupancy.
+```{r}
+ranef(fm2)
+```
+
+
+## 6. Modèle $(\psi, p_{\mbox{température}})$
+
+On crée un variable pour l'effet des températures.
+```{r}
+temp <- cbind(dat$temp_R1, dat$temp_R2, dat$temp_R3)
+```
+
+On refait le jeu de données.
+```{r}
+lezard <- unmarkedFrameOccu(y = cbind(dat$presence_R1, dat$presence_R2, dat$presence_R3),
+                            obsCovs = list(temp = temp))
+```
+
+
+Données?
+```{r}
+summary(lezard)
+```
+
+Ajuste modèle.
+```{r}
+fm3 <- occu(~ temp ~ 1, lezard)
+```
+
+Les estimations sont sur échelle logit.
+```{r}
+fm3
+```
+
+On back-transforme l'occupancy.
+```{r}
+backTransform(fm3, type = 'state')
+confint(backTransform(fm3, type='state'))
+```
+
+Et pour la détection.
+```{r}
+temp_partout <- c(dat$temp_R1, dat$temp_R2, dat$temp_R3)
+nd <- data.frame(temp = seq(min(temp_partout), max(temp_partout), length = 50))
+ppred <- predict(fm3, type = 'det', newdata = nd)
+```
+
+Visualise.
+```{r}
+plot(nd$temp, 
+     ppred[,1], 
+     type = "l", 
+     lwd = 3, 
+     xlab = "température", 
+     ylab = "probabilité estimée de détection du lézard")
+```
+
+Conditional occupancy.
+```{r}
+ranef(fm3)
+```
+
+
+## 7. Modèle $(\psi, p_{\mbox{vent}})$
+
+On crée un variable pour l'effet des vents.
+```{r}
+vent <- cbind(dat$vent_R1, dat$vent_R2, dat$vent_R3)
+```
+
+On refait le jeu de données.
+```{r}
+lezard <- unmarkedFrameOccu(y = cbind(dat$presence_R1, dat$presence_R2, dat$presence_R3),
+                            obsCovs = list(vent = vent))
+```
+
+
+Données?
+```{r}
+summary(lezard)
+```
+
+Ajuste modèle.
+```{r}
+fm4 <- occu(~ vent ~ 1, lezard)
+```
+
+Les estimations sont sur échelle logit.
+```{r}
+fm4
+```
+
+On back-transforme l'occupancy.
+```{r}
+backTransform(fm4, type = 'state')
+confint(backTransform(fm4, type='state'))
+```
+
+Et pour la détection.
+```{r}
+vent_partout <- c(dat$vent_R1, dat$vent_R2, dat$vent_R3)
+nd <- data.frame(vent = seq(min(vent_partout), max(vent_partout), length = 50))
+det_pred <- predict(fm4, type = 'det', newdata = nd)
+```
+
+Visualise.
+```{r}
+plot(nd$vent, 
+     det_pred[,1], 
+     type = "l", 
+     lwd = 3, 
+     xlab = "vent", 
+     ylab = "probabilité estimée de détection du lézard")
+```
+
+Conditional occupancy.
+```{r}
+ranef(fm4)
+```
+
+## 8. Modèle $(\psi, p_{\mbox{nuages}})$
+
+On crée un variable pour l'effet des nuages
+```{r}
+nuage <- cbind(dat$nuage_R1, dat$nuage_R2, dat$nuage_R3)
+```
+
+On refait le jeu de données.
+```{r}
+lezard <- unmarkedFrameOccu(y = cbind(dat$presence_R1, dat$presence_R2, dat$presence_R3),
+                            obsCovs = list(nuage = nuage))
+```
+
+
+Données?
+```{r}
+summary(lezard)
+```
+
+Ajuste modèle.
+```{r}
+fm5 <- occu(~ nuage ~ 1, lezard)
+```
+
+Les estimations sont sur échelle logit.
+```{r}
+fm5
+```
+
+On back-transforme l'occupancy.
+```{r}
+backTransform(fm5, type = 'state')
+confint(backTransform(fm5, type='state'))
+```
+
+Et pour la détection.
+```{r}
+nuage_partout <- c(dat$nuage_R1, dat$nuage_R2, dat$nuage_R3)
+nd <- data.frame(nuage = seq(min(nuage_partout), max(nuage_partout), length = 50))
+det_pred <- predict(fm5, type = 'det', newdata = nd)
+```
+
+Visualise.
+```{r}
+plot(nd$nuage, 
+     det_pred[,1], 
+     type = "l", 
+     lwd = 3, 
+     xlab = "nuages", 
+     ylab = "probabilité estimée de détection du lézard")
+```
+
+Conditional occupancy.
+```{r}
+ranef(fm5)
+```
+
+## 9. Modèle $(\psi_{lapins}, p_t)$
+
+On a refait le jeu de données à chaque fois, mais on aurait pu tout mettre toutes les covariables en une fois.
+
+Les covariables qui dépendent du temps.
+```{r}
+occ <- matrix(c('occ 1','occ 2','occ 3'),
+              nrow = 70, # nrow(lezard@y), 
+              ncol = 3, #ncol(lezard), 
+              byrow = TRUE)
+
+temp <- cbind(dat$temp_R1, dat$temp_R2, dat$temp_R3)
+vent <- cbind(dat$vent_R1, dat$vent_R2, dat$vent_R3)
+nuage <- cbind(dat$nuage_R1, dat$nuage_R2, dat$nuage_R3)
+```
+
+La covariable qui dépend du site.
+```{r}
+site.covs <- data.frame(lapin = dat$nb_terriers_lapins)
+site.covs
+```
+
+On refait le jeu de données.
+```{r}
+lezard <- unmarkedFrameOccu(y = cbind(dat$presence_R1, dat$presence_R2, dat$presence_R3),
+                            obsCovs = list(temp = temp,
+                                           vent = vent,
+                                           nuage = nuage,
+                                           occ = occ),
+                            siteCovs = site.covs)
+```
+
+
+Données?
+```{r}
+summary(lezard)
+```
+
+Ajuste modèle.
+```{r}
+fm6 <- occu(~ occ ~ lapin, lezard)
+```
+
+Les estimations sont sur échelle logit.
+```{r}
+fm6
+```
+
+On back-transforme la détection. 
+```{r}
+nd <- data.frame(occ = c('occ 1','occ 2','occ 3'))
+predict(fm6, type = 'det', newdata = nd)
+```
+
+Et pour l'occupancy.
+```{r}
+nd <- data.frame(lapin = seq(min(dat$nb_terriers_lapins), 
+                             max(dat$nb_terriers_lapins), 
+                             length = 50))
+occ_pred <- predict(fm6, type = 'state', newdata = nd)
+```
+
+Visualise.
+```{r}
+plot(nd$lapin, 
+     occ_pred[,1], 
+     type = "l", 
+     lwd = 3, 
+     xlab = "nb terriers lapins", 
+     ylab = "probabilité estimée d'occupancy du lézard")
+```
+
+Conditional occupancy.
+```{r}
+ranef(fm6)
+```
+
+## 10. Sélection de modèles
+
+On fait tourner les modèles avec le même jeu de données.
+```{r}
+fm <- occu(~ 1 ~ 1, lezard)
+fm1 <- occu(~ occ ~ 1, lezard)
+fm2 <- occu(~ 1 ~ lapin, lezard)
+fm3 <- occu(~ temp ~ 1, lezard)
+fm4 <- occu(~ vent ~ 1, lezard)
+fm5 <- occu(~ nuage ~ 1, lezard)
+fm6 <- occu(~ occ ~ lapin, lezard)
+```
+
+On les rassemble. 
+```{r}
+fmList <- fitList('{psi, p}' = fm, 
+                  '{psi, p(survey)}' = fm1, 
+                  '{psi(terrier), p}' = fm2, 
+                  '{psi, p(temp)}' = fm3, 
+                  '{psi, p(vent)}' = fm4, 
+                  '{psi, p(nuage)}' = fm5, 
+                  '{psi(terrier), p(survey)}' = fm6)
+```
+
+Les AIC.
+```{r}
+modSel(fmList)
+```
+
+Extract coefficients and standard errors
+```{r}
+coef(fmList)
+SE(fmList)
+```
+
+Model-averaged prediction
+```{r}
+predict(fmList, type="state")
+```
+
+# Partie 2
+
+On lit les données lézard ocelés. 
+```{r}
+dat <- read.csv2("dat/lezard-ocelle-oleron-2007-pa.csv")
+```
+
+Les covariables qui dépendent du temps.
+```{r}
+occ <- matrix(c('occ 1','occ 2','occ 3'),
+              nrow = 70, # nrow(lezard@y), 
+              ncol = 3, #ncol(lezard), 
+              byrow = TRUE)
+
+temp <- cbind(dat$temp_R1, dat$temp_R2, dat$temp_R3)
+vent <- cbind(dat$vent_R1, dat$vent_R2, dat$vent_R3)
+nuage <- cbind(dat$nuage_R1, dat$nuage_R2, dat$nuage_R3)
+```
+
+La covariable qui dépend du site.
+```{r}
+site.covs <- data.frame(lapin = dat$nb_terriers_lapins)
+site.covs
+```
+
+On refait le jeu de données.
+```{r}
+lezard <- unmarkedFramePCount(y = cbind(dat$Abond_R1, dat$Abond_R2, dat$Abond_R3),
+                            obsCovs = list(temp = temp,
+                                           vent = vent,
+                                           nuage = nuage,
+                                           occ = occ),
+                            siteCovs = site.covs)
+```
+
+
+Données?
+```{r}
+summary(lezard)
+```
+
+Ajuste modèle.
+```{r}
+fm <- pcount(~ 1 ~ 1, lezard, K = 100) # detection, then abundance
+```
+
+Les estimations sont sur échelle logit.
+```{r}
+fm
+```
+
+On back-transforme la détection. 
+```{r}
+names(fm)
+backTransform(fm, "state")
+backTransform(fm, "det")
+```
+
+Conditional occupancy.
+```{r}
+ranef(fm)
+```
+
+On fait tourner qqs modèles avec le même jeu de données.
+```{r}
+fm <- pcount(~ 1 ~ 1, lezard, K = 100)
+fm1 <- pcount(~ occ ~ 1, lezard, K = 100)
+fm2 <- pcount(~ 1 ~ lapin, lezard, K = 100)
+fm3 <- pcount(~ temp ~ 1, lezard, K = 100)
+fm4 <- pcount(~ occ ~ lapin, lezard, K = 100)
+```
+
+On les rassemble. 
+```{r}
+fmList <- fitList('{lambda, r}' = fm, 
+                  '{lambda, p(survey)}' = fm1, 
+                  '{lambda(terrier), p}' = fm2, 
+                  '{lambda, p(temp)}' = fm3, 
+                  '{lambda(terrier), p(survey)}' = fm4)
+```
+
+Les AIC.
+```{r}
+modSel(fmList)
+```
+
+On back-transforme la détection. 
+```{r}
+nd <- data.frame(occ = c('occ 1','occ 2','occ 3'))
+predict(fm4, type = 'det', newdata = nd)
+```
+
+Et pour l'occupancy.
+```{r}
+nd <- data.frame(lapin = seq(min(dat$nb_terriers_lapins), 
+                             max(dat$nb_terriers_lapins), 
+                             length = 50))
+N_pred <- predict(fm4, type = 'state', newdata = nd)
+```
+
+Visualise.
+```{r}
+plot(nd$lapin, 
+     N_pred[,1], 
+     type = "l", 
+     lwd = 3, 
+     xlab = "nb terriers lapins", 
+     ylab = "abondance du lézard")
+```
+
+
+# Partie 3
+
+On lit les données. 
+```{r}
+dat <- readxl::read_xlsx("dat/dynoccupancy.xlsx")
+dat
+```
+
+Des modèles.
+```{r}
+yearly.site.covs <- list(
+   year = matrix(paste0("year", 1:10), 
+                 nrow = 250, 
+                 ncol = 10, 
+                 byrow = TRUE))
+head(yearly.site.covs)
+
+umf <- unmarkedMultFrame(y = dat, 
+                         yearlySiteCovs = yearly.site.covs,
+                         numPrimary = 10) 
+umf                                # look at data
+summary(umf)                       # summarize
+fm <- colext(~1, ~1, ~1, ~1, umf)  # fit constant param model
+                                   # psi, gam (colonization), eps (extinction), det
+fm
+```
+
+On back-transforme l'occupancy.
+```{r}
+names(fm)
+backTransform(fm, type = 'psi')
+confint(backTransform(fm, type='psi'))
+backTransform(fm, type = 'col')
+confint(backTransform(fm, type='col'))
+backTransform(fm, type = 'ext')
+confint(backTransform(fm, type='ext'))
+backTransform(fm, type = 'det')
+confint(backTransform(fm, type='det'))
+```
+
+Conditional occupancy.
+```{r}
+ranef(fm)
+```
+
+On ajuste plusiers modèles.
+```{r}
+fm <- colext(~1, ~1, ~1, ~1, umf)
+fm1 <- colext(~1, ~year, ~1, ~1, umf)
+fm2 <- colext(~1, ~1, ~year, ~1, umf)
+fm3 <- colext(~1, ~year, ~year, ~1, umf)
+```
+
+On les rassemble. 
+```{r}
+fmList <- fitList('{psi, col, ext, det}' = fm, 
+                  '{psi, col(year), ext, det}' = fm1, 
+                  '{psi, col, ext(year), det}' = fm2,
+                  '{psi, col(year), ext(year), det}' = fm3)
+```
+
+Les AIC.
+```{r}
+modSel(fmList)
+```
+
+On crée un variable pour l'effet du temps, et on prédit col et ext. 
+```{r}
+nd <- data.frame(year = paste0("year", 1:9))
+col_pred <- predict(fm3, type = 'col', newdata = nd)
+ext_pred <- predict(fm3, type = 'ext', newdata = nd)
+```
+
+Visualise.
+```{r}
+par(mfrow = c(1,2))
+plot(1:9, col_pred[,1], 
+     xlab = "year", 
+     ylab = "estimated prob",
+     main = "colonization")
+plot(1:9, ext_pred[,1], 
+     xlab = "year", 
+     ylab = "estimated prob",
+     main = "extinction")
+```
+
+La même chose avec intervalle de confiance.
+```{r}
+library(plotrix)
+par(mfrow = c(1,2))
+plotCI(1:9, col_pred[,1], 
+       li = col_pred[,3],
+       ui = col_pred[,4],
+       xlab = "year", 
+       ylab = "estimated prob",
+       main = "colonization")
+plotCI(1:9, ext_pred[,1], 
+       li = ext_pred[,3],
+       ui = ext_pred[,4],
+       xlab = "year", 
+       ylab = "estimated prob",
+       main = "extinction")
+```
+
