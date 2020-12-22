@@ -142,19 +142,21 @@ Create default design data
 mouse.ddl <- make.design.data(mouse.proc)
 ```
 
-Here, we set up the structures for 'p' and 'c'. I use the "share = TRUE" or "share = FALSE" options in each of the structures to indicate whether 'p' & 'c' should share the same columns of the design matrix or not. Although this is not necessary for all of the structures below, it does add a covariate "c" to the design data with c=0 for rows pertaining to parameter 'p' and c=1 for rows pertaining to parameter 'c. This is nice as it gives us the opportunity to build some of the additive structures we're interested in. We can then use the covariate "c" in formula statements if we want to. But, we don't have to include that covariate if we don't want to (e.g., see the p.dot structure).
-
+On utilise "share = TRUE" pour une seule probabilité de capture. 
 ```{r}
 run.mouse <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   mouse.model.list <- create.model.list("FullHet")
   
@@ -166,13 +168,9 @@ run.mouse <- function() {
 }
 ```
 
-Run the models and examine the output
+Run the models and examine the output, and examine model-selection table
 ```{r}
 mouse.results <- run.mouse()
-```
-
-Examine model-selection table
-```{r}
 mouse.results
 ```
 
@@ -183,8 +181,8 @@ names(mouse.results)
 
 examine the output from top-ranked model (#5)
 ```{r}
-mouse.results$p.h.time$results$real
-mouse.results$p.h.time$results$derived
+mouse.results$p.h.behav$results$real
+mouse.results$p.h.behav$results$derived
 ```
 
 Comme dans les diapos.
@@ -234,7 +232,10 @@ Les modèles maintenant.
 
 Process data
 ```{r}
-mouse.proc <- process.data(mouse, begin.time = 1, model = "FullHet", groups = "sex")
+mouse.proc <- process.data(mouse, 
+                           begin.time = 1, 
+                           model = "FullHet", 
+                           groups = "sex")
 ```
 
 Create default design data
@@ -246,52 +247,58 @@ Liste des modèles.
 ```{r}
 run.mouse <- function() {
 
+  # sans l'effet sexe
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
+
+  # avec l'effet sexe
   p.sex <- list(formula =  ~ sex, share = TRUE)
-  p.sex.behav <- list(formula =  ~ sex, share = FALSE)
+  p.sex.behav <- list(formula =  ~ sex)
   p.time.sex <- list(formula =  ~ time + sex, share = TRUE)
-  p.time.behav.sex <- list(formula =  ~ time + sex, share = FALSE)
+  p.time.behav.sex <- list(p = list(formula =  ~ sex + time), 
+                           c = list(formula =  ~ sex + time))
   p.h.sex <- list(formula = ~ mixture + sex, share = TRUE)
-  p.h.behav.sex <- list(formula = ~ mixture + sex, share = FALSE)
+  p.h.behav.sex <- list(p = list(formula =  ~ sex + mixture), 
+                        c = list(formula =  ~ sex + mixture))
   p.h.time.sex <- list(formula = ~ time + mixture + sex, share = TRUE)
-  p.h.time.behav.sex <- list(formula = ~ time + mixture + sex, share = FALSE)
+  p.h.time.behav.sex <- list(p = list(formula =  ~ sex + mixture + time), 
+                             c = list(formula =  ~ sex + mixture + time))
 
   mouse.model.list <- create.model.list("FullHet")
   
   mouse.results <- mark.wrapper(mouse.model.list,
-                              data = mouse.proc, 
-                              ddl = mouse.ddl)
+                                data = mouse.proc, 
+                                ddl = mouse.ddl)
                               
   return(mouse.results)
 }
 ```
 
-Run the models and examine the output
+Run the models and examine the output, and examine model-selection table.
 ```{r}
 mouse.results <- run.mouse()
-```
-
-Examine model-selection table
-```{r}
 mouse.results
 ```
+
 
 examine model names and find the name of the top model
 ```{r}
 names(mouse.results)
 ```
 
-examine the output from top-ranked model (#10)
+examine the output from top-ranked model (#9)
 ```{r}
-mouse.results$p.h.time.sex$results$real
-mouse.results$p.h.time.sex$results$derived
+mouse.results$p.h.time.behav.sex$results$real
+mouse.results$p.h.time.behav.sex$results$derived
 ```
 
 Comme dans les diapos.
@@ -358,6 +365,7 @@ Liste des modèles.
 ```{r}
 run.mouse <- function() {
 
+  # sans l'effet age
   p.dot <- list(formula =  ~ 1, share = TRUE)
   p.dot.behav <- list(formula =  ~ 1, share = FALSE)
   p.time <- list(formula =  ~ time, share = TRUE)
@@ -366,14 +374,19 @@ run.mouse <- function() {
   p.h.behav <- list(formula = ~ mixture, share = FALSE)
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
   p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
-  p.age <- list(formula =  ~ ages, share = TRUE)
-  p.age.behav <- list(formula =  ~ ages, share = FALSE)
-  p.time.age <- list(formula =  ~ time + ages, share = TRUE)
-  p.time.behav.age <- list(formula =  ~ time + ages, share = FALSE)
-  p.h.age <- list(formula = ~ mixture + ages, share = TRUE)
-  p.h.behav.age <- list(formula = ~ mixture + ages, share = FALSE)
-  p.h.time.age <- list(formula = ~ time + mixture + ages, share = TRUE)
-  p.h.time.behav.age <- list(formula = ~ time + mixture + ages, share = FALSE)
+  
+  # avec l'effet age
+  p.age <- list(formula =  ~ age, share = TRUE)
+  p.age.behav <- list(formula =  ~ age)
+  p.time.age <- list(formula =  ~ time + age, share = TRUE)
+  p.time.behav.age <- list(p = list(formula =  ~ age + time), 
+                           c = list(formula =  ~ age + time))
+  p.h.age <- list(formula = ~ mixture + age, share = TRUE)
+  p.h.behav.age <- list(p = list(formula =  ~ age + mixture), 
+                        c = list(formula =  ~ age + mixture))
+  p.h.time.age <- list(formula = ~ time + mixture + age, share = TRUE)
+  p.h.time.behav.age <- list(p = list(formula =  ~ age + mixture + time), 
+                             c = list(formula =  ~ age + mixture + time))
 
   mouse.model.list <- create.model.list("FullHet")
   
@@ -385,13 +398,9 @@ run.mouse <- function() {
 }
 ```
 
-Run the models and examine the output
+Run the models and examine the output, and examine model-selection table
 ```{r}
 mouse.results <- run.mouse()
-```
-
-Examine model-selection table
-```{r}
 mouse.results
 ```
 
@@ -618,7 +627,8 @@ histories2007[histories2007 > 1] <- 1 # les observations mens multiples = 1
 
 On fait les tests et l'ajustement pour 1997.
 ```{r}
-cistude <- data.frame(ch = collapseCH(histories1997), freq = rep(1, nrow(histories1997)))
+cistude <- data.frame(ch = collapseCH(histories1997), 
+                      freq = rep(1, nrow(histories1997)))
 head(cistude)
 tail(cistude)
 ```
@@ -632,7 +642,9 @@ closure.test(cistude_secr, SB = TRUE)
 
 Process data
 ```{r}
-cistude.proc <- process.data(cistude, begin.time = 1, model = "FullHet")
+cistude.proc <- process.data(cistude, 
+                             begin.time = 1, 
+                             model = "FullHet")
 ```
 
 Create default design data
@@ -644,13 +656,16 @@ cistude.ddl <- make.design.data(cistude.proc)
 run.cistude <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   cistude.model.list <- create.model.list("FullHet")
   
@@ -679,8 +694,8 @@ names(cistude.results)
 
 examine the output from top-ranked model (#5)
 ```{r}
-cistude.results$p.dot$results$real
-cistude.results$p.dot$results$derived
+cistude.results$p.dot.behav$results$real
+cistude.results$p.dot.behav$results$derived
 ```
 
 Idem avec 2007.
@@ -712,13 +727,16 @@ cistude.ddl <- make.design.data(cistude.proc)
 run.cistude <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   cistude.model.list <- create.model.list("FullHet")
   
@@ -745,10 +763,10 @@ examine model names and find the name of the top model
 names(cistude.results)
 ```
 
-examine the output from top-ranked model (#5)
+examine the output from top-ranked model (#3)
 ```{r}
-cistude.results$p.dot$results$real
-cistude.results$p.dot$results$derived
+cistude.results$p.h$results$real
+cistude.results$p.h$results$derived
 ```
 
 # Partie 5 : monarques
@@ -766,7 +784,7 @@ dat <- readxl::read_xlsx("dat/CMR-Monarque-2019.xlsx") %>%
 dat
 ```
 
-On construit les histoire de capture.
+On construit les histoires de capture.
 ```{r}
 histoires <- dat %>% 
   group_by(identifiant) %>%
@@ -827,7 +845,9 @@ closure.test(monarque_reduced_secr, SB = TRUE)
 
 On passe aux analyses.
 ```{r}
-monarque.proc <- process.data(monarque_reduced, begin.time = 1, model = "FullHet")
+monarque.proc <- process.data(monarque_reduced, 
+                              begin.time = 1, 
+                              model = "FullHet")
 ```
 
 Create default design data
@@ -839,13 +859,16 @@ monarque.ddl <- make.design.data(monarque.proc)
 run.monarque <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   monarque.model.list <- create.model.list("FullHet")
   
@@ -945,7 +968,9 @@ Les modèles maintenant. On commence par le jeu de données avec les deux sexes 
 
 Process data
 ```{r}
-iguane.proc <- process.data(iguane, begin.time = 1, model = "FullHet")
+iguane.proc <- process.data(iguane, 
+                            begin.time = 1, 
+                            model = "FullHet")
 ```
 
 Create default design data
@@ -958,13 +983,16 @@ Liste des modèles.
 run.iguane <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   iguane.model.list <- create.model.list("FullHet")
   
@@ -993,15 +1021,17 @@ names(iguane.results)
 
 examine the output from top-ranked model (#8)
 ```{r}
-iguane.results$p.time.behav$results$real
-iguane.results$p.time.behav$results$derived
+iguane.results$p.time$results$real
+iguane.results$p.time$results$derived
 ```
 
 En séparant les sexes. Femelles, puis mâles. 
 
 Process data
 ```{r}
-iguane.proc <- process.data(iguaneF, begin.time = 1, model = "FullHet")
+iguane.proc <- process.data(iguaneF, 
+                            begin.time = 1, 
+                            model = "FullHet")
 ```
 
 Create default design data
@@ -1014,13 +1044,16 @@ Liste des modèles.
 run.iguane <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   iguane.model.list <- create.model.list("FullHet")
   
@@ -1047,10 +1080,16 @@ examine model names and find the name of the top model
 names(iguane.results)
 ```
 
-examine the output from top-ranked model (#8)
+examine the output from top-ranked model
 ```{r}
-iguane.results$p.time.behav$results$real
-iguane.results$p.time.behav$results$derived
+iguane.results$p.h.time$results$real
+iguane.results$p.h.time$results$derived
+```
+
+Autre modèle.
+```{r}
+iguane.results$p.time$results$real
+iguane.results$p.time$results$derived
 ```
 
 
@@ -1069,13 +1108,16 @@ Liste des modèles.
 run.iguane <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   iguane.model.list <- create.model.list("FullHet")
   
@@ -1104,8 +1146,8 @@ names(iguane.results)
 
 examine the output from top-ranked model (#8)
 ```{r}
-iguane.results$p.time.behav$results$real
-iguane.results$p.time.behav$results$derived
+iguane.results$p.time$results$real
+iguane.results$p.time$results$derived
 ```
 
 
@@ -1141,7 +1183,9 @@ Les modèles maintenant. On commence par le jeu de données avec les deux sexes 
 
 Process data
 ```{r}
-iguane.proc <- process.data(iguane, begin.time = 1, model = "FullHet")
+iguane.proc <- process.data(iguane, 
+                            begin.time = 1, 
+                            model = "FullHet")
 ```
 
 Create default design data
@@ -1154,13 +1198,16 @@ Liste des modèles.
 run.iguane <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   iguane.model.list <- create.model.list("FullHet")
   
@@ -1210,13 +1257,16 @@ Liste des modèles.
 run.iguane <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
 
   iguane.model.list <- create.model.list("FullHet")
   
@@ -1265,13 +1315,17 @@ Liste des modèles.
 run.iguane <- function() {
 
   p.dot <- list(formula =  ~ 1, share = TRUE)
-  p.dot.behav <- list(formula =  ~ 1, share = FALSE)
+  p.dot.behav <- list(formula =  ~ 1)
   p.time <- list(formula =  ~ time, share = TRUE)
-  p.time.behav <- list(formula =  ~ time, share = FALSE)
   p.h <- list(formula = ~ mixture, share = TRUE)
-  p.h.behav <- list(formula = ~ mixture, share = FALSE)
+  p.time.behav <- list(p = list(formula =  ~ time), 
+                       c = list(formula =  ~ time))
+  p.h.behav <- list(p = list(formula =  ~ mixture), 
+                    c = list(formula =  ~ mixture))
   p.h.time <- list(formula = ~ time + mixture, share = TRUE)
-  p.h.time.behav <- list(formula = ~ time + mixture, share = FALSE)
+  p.h.time.behav <- list(p = list(formula =  ~ mixture + time), 
+                         c = list(formula =  ~ mixture + time))
+
 
   iguane.model.list <- create.model.list("FullHet")
   
