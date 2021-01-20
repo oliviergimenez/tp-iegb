@@ -1,5 +1,5 @@
 ---
-title: "TP 4 marked survival"
+title: "TP 4 analyse de survie avec données sur animaux marqués"
 author: "Olivier Gimenez"
 date: "19/12/2020"
 output:
@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       warning = FALSE)
 ```
 
-On charge les packages `RMark` et `R2ucare`.
+On charge les packages `RMark` et `R2ucare`, ce dernier servant à tester les hypothèse des modèles de capture-recapture en population ouverte. 
 ```{r}
 library(RMark)
 library(R2ucare)
@@ -21,27 +21,31 @@ library(R2ucare)
 
 # Partie 1 : Estimation de la survie, exemple du cincle plongeur
 
-Les données
+Les données.
 ```{r}
 cincle <- convert.inp("dat/cincle-plongeur.inp")
+```
+
+On jette un coup d'oeil.
+```{r}
 head(cincle)
 ```
 
-Process the data
+On prépare les données. 
 ```{r}
 cincle.proc <- process.data(cincle, 
                               begin.time = 1, 
                               model = "CJS")
-```
-
-Create default design data
-```{r}
 cincle.ddl <- make.design.data(cincle.proc)
 ```
 
-Examine the design data 
+On inspecte la structure pour la survie.
 ```{r}
 head(cincle.ddl$Phi)
+```
+
+Et la détection.
+```{r}
 head(cincle.ddl$p)
 ```
 
@@ -53,28 +57,36 @@ pt <- list(formula=~time)
 p <- list(formula=~1)
 ```
 
-Fait tourner modèle CJS.
+On ajuste le modèle Cormack-Jolly-Seber (CJS). 
 ```{r}
 cjs.cincle <- mark(cincle.proc,
                    cincle.ddl,
                    model.parameters = list(Phi = phit, p = pt))
+```
+
+Inspectons les résultats. 
+```{r}
 cjs.cincle$results$real
 ```
 
-PIM pour CJS.
+Les PIM pour CJS.
 ```{r}
 PIMS(cjs.cincle,"Phi")
 ```
 
-Fait tourner modèle avec param constants. 
+On fait tourner le modèle avec paramètres constants. 
 ```{r}
 phip.cincle <- mark(cincle.proc,
                     cincle.ddl,
                     model.parameters = list(Phi = phi, p = p))
+```
+
+Les résultats.
+```{r}
 phip.cincle$results$real
 ```
 
-PIM pour CJS.
+Les PIM.
 ```{r}
 PIMS(phip.cincle,"Phi")
 PIMS(phip.cincle,"p")
@@ -97,11 +109,12 @@ On a 7 occasions de capture, donc 6 paramètres de survie. Si on suppose que la 
 cov.cincle <- cov.cincle[!(cov.cincle$annee == "1987"),]
 ```
 
-On crée une survie qui depend du débit. Jetons un coup d'oeil à la structure sur la survie.
+Jetons un coup d'oeil à la structure sur la survie.
 ```{r}
 cincle.ddl$Phi
 ```
 
+On crée une survie qui depend du débit. 
 ```{r}
 cincle.ddl$Phi$debit <- 0 # nv var mise a 0
 for (i in 1:nrow(cov.cincle)){
@@ -140,7 +153,7 @@ Les paramètres estimés.
 phicov.cincle$results$real
 ```
 
-Visualisons relation survie débit pour une valeur moyenne de température.
+Visualisons la relation survie vs. débit pour une valeur moyenne de température. On créé d'abord une grille pour le débit. 
 ```{r}
 min.debit <- min(cov.cincle$debit_l_sec)
 max.debit <- max(cov.cincle$debit_l_sec)
@@ -158,7 +171,7 @@ pred.dat <- cbind(1, pred.dat)
 pred.dat <- as.matrix(pred.dat)
 ```
 
-Make prediction sur échelle logit.
+On fait la prédiction, sur l'échelle logit.
 ```{r}
 betas.phi <- phicov.cincle$results$beta[1:3,1]
 pred.surv.logit <- pred.dat %*% betas.phi
@@ -198,7 +211,7 @@ ggplot(pred.df, aes(x = debit, y = survie)) +
 
 # Partie 2 : Estimation de la survie, exemple du martinet noir
 
-Les données
+Les données.
 ```{r}
 martinet <- convert.inp("dat/martinet-noir.inp",
                         group.df = data.frame(colonie = c("nord", "sud")), 
@@ -206,23 +219,13 @@ martinet <- convert.inp("dat/martinet-noir.inp",
 head(martinet)
 ```
 
-Process the data
+On prépare les données.
 ```{r}
 martinet.proc <- process.data(martinet, 
                               begin.time = 1, 
                               model = "CJS", 
                               groups = ("colonie"))
-```
-
-Create default design data
-```{r}
 martinet.ddl <- make.design.data(martinet.proc)
-```
-
-Examine the design data 
-```{r}
-head(martinet.ddl$Phi)
-head(martinet.ddl$p)
 ```
 
 On spécifie les effets sur les paramètres.
@@ -233,7 +236,7 @@ pt <- list(formula=~time)
 p <- list(formula=~1)
 ```
 
-Fait tourner modèle CJS.
+Fait tourner modèle CJS, et examine les paramètres estimés. 
 ```{r}
 cjs.martinet <- mark(martinet.proc,
                       martinet.ddl,
@@ -271,12 +274,12 @@ martinet.ddl <- add.design.data(martinet.proc,
                              right = FALSE)
 ```
 
-Parameter specification.
+On spécifie une survie qui dépend de l'âge.
 ```{r}
 phi.age <- list(formula=~ageclass) # age effect on survival
 ```
 
-Fit CJS model.
+On ajuste le modèle avec survie âge-dépendante et prob de recapture constante.
 ```{r}
 CJSage.martinet <- mark(martinet.proc,
                         martinet.ddl,
@@ -289,15 +292,15 @@ PIM pour CJS avec âge.
 PIMS(CJSage.martinet,"Phi")
 ```
 
-Maintenant gros modèle ${phi(a.g), p(g.t)}$.
+Maintenant on passe au gros modèle ${phi(a.g), p(g.t)}$, avec interaction âge et groupe sur la survie, et groupe et temps sur la recapture. 
 
-Parameter specification.
+On définit les paramètres.
 ```{r}
 phi.a.g <- list(formula=~ageclass*colonie) # age and colonie effect on survival
 p.g.t <- list(formula=~colonie*time) # age and colonie effect on survival
 ```
 
-Fit CJS model.
+On ajuste le modèle. 
 ```{r}
 gros.mod <- mark(martinet.proc,
                         martinet.ddl,
@@ -305,7 +308,7 @@ gros.mod <- mark(martinet.proc,
 gros.mod$results$real
 ```
 
-PIM pour survie et détection dans big model.
+PIM pour survie et détection dans le gros modèle.
 ```{r}
 PIMS(gros.mod,"Phi")
 PIMS(gros.mod,"p")
@@ -352,7 +355,7 @@ G1 <- simul(nind = nind, nocc = nocc, phi = 0.8, p = 0.8)
 G2 <- simul(nind = nind, nocc = nocc, phi = 0.8, p = 0.2)
 ```
 
-A l’aide du package `marked`, ajuster séparément à G1 et G2 le modèle ${\Phi(t), p(t)}$ appelé aussi le modèle de Cormack-Jolly-Seber (CJS). Que pouvez-vous vous dire sur l’estimation des paramètres ?
+Ajuster séparément à G1 et G2 le modèle ${\Phi(t), p(t)}$ appelé aussi le modèle de Cormack-Jolly-Seber (CJS). Que pouvez-vous vous dire sur l’estimation des paramètres ?
 
 ```{r}
 G1marked <- data.frame(ch = tidyr::unite(G1, col = "ch", sep = ""), 
@@ -361,30 +364,21 @@ G2marked <- data.frame(ch = tidyr::unite(G2, col = "ch", sep = ""),
                        n = rep(1, nrow(G2)))
 ```
 
-Process data
+On prépare les données. 
 ```{r}
 G1.proc <- process.data(G1marked)
 G2.proc <- process.data(G2marked)
-```
-
-Make design data
-```{r}
 G1.ddl <- make.design.data(G1.proc)
 G2.ddl <- make.design.data(G2.proc)
 ```
 
-Look at design data
-```{r}
-G1.ddl
-```
-
-Outine formulas for each parameter
+On spécifie les paramètres. 
 ```{r}
 phi <- list(formula=~1)  
 p <- list(formula=~1)
 ```
 
-Make model constant survival and detection prob. For G1 first. 
+On ajuste le modèle avec paramètres constants aux données G1.  
 ```{r}
 cjs.G1 <- mark(G1.proc,
               G1.ddl,
@@ -392,7 +386,7 @@ cjs.G1 <- mark(G1.proc,
 cjs.G1$results$real
 ```
 
-Then for G2. 
+Puis aux données G2. 
 ```{r}
 cjs.G2 <- mark(G2.proc,
               G2.ddl,
@@ -453,7 +447,7 @@ overall_CJS(G1plusG2, rep(1,nrow(G1plusG2)))
 
 Il peut y avoir des animaux en transit sur la zone d’étude.
 
-a) Pour créer artificiellement une telle situation, rajouter 50 individus en transit (i.e. possédant une histoire avec un seul événement de capture) à chaque date dans G1. Voir la fin du fichier G1transit.inp
+a) Pour créer artificiellement une telle situation, rajouter 50 individus en transit (i.e. possédant une histoire avec un seul événement de capture) à chaque date dans G1. 
 
 ```{r}
 G1transit <- as.matrix(G1)
@@ -468,29 +462,32 @@ G1transit <- data.frame(y = G1transit)
 
 ```{r}
 dim(G1transit)
+```
+
+
+```{r}
 head(G1transit)
+```
+
+
+```{r}
 tail(G1transit)
 ```
 
 
-b) faire tourner le modèle CJS à ces nouvelles données avec `RMark`. Quelles sont vos conclusions concernant les estimations ?
+b) Faire tourner le modèle CJS à ces nouvelles données avec `RMark`. Quelles sont vos conclusions concernant les estimations ?
 
 ```{r}
 G1transitmarked <- data.frame(ch = tidyr::unite(G1transit, col = "ch", sep = ""), 
                               n = rep(1, nrow(G1transit)))
 ```
 
-Process data
 ```{r}
 G1transit.proc <- process.data(G1transitmarked)
-```
-
-Make design data
-```{r}
 G1transit.ddl <- make.design.data(G1transit.proc)
 ```
 
-Fit CJS model.
+Ajuste le modèle. 
 ```{r}
 cjs.G1transit <- mark(G1transit.proc,
                      G1transit.ddl,
@@ -515,7 +512,7 @@ test3sr(G1transit, rep(1,nrow(G1transit)))
 ```
 
 
-d) faire tourner un modèle à 2 classes d’âge sur la survie $\phi(a2*t)$ avec `RMark`. Vos conclusions ?
+d) Faire tourner un modèle à 2 classes d’âge sur la survie $\phi(a2*t)$ avec `RMark`. Vos conclusions ?
 
 ```{r}
 G1transit.ddl <- make.design.data(G1transit.proc)
@@ -529,12 +526,12 @@ G1transit.ddl <- add.design.data(G1transit.proc,
                              right = FALSE)
 ```
 
-Parameter specification.
+On spécifie une survie qui dépend de l'âge.
 ```{r}
 phi.age <- list(formula=~ageclass) # age effect on survival
 ```
 
-Fit CJS model.
+On ajuste le modèle.
 ```{r}
 cjsage.G1transit <- mark(G1transit.proc,
                      G1transit.ddl,
@@ -542,7 +539,7 @@ cjsage.G1transit <- mark(G1transit.proc,
 cjsage.G1transit$results$real
 ```
 
-Autre façon. 
+D'une autre façon. 
 ```{r}
 G1transit.ddl <- make.design.data(G1transit.proc)
 #max age 4
