@@ -1,7 +1,5 @@
 ---
 title: "TP 4 analyse de survie avec données sur animaux marqués"
-author: "Olivier Gimenez"
-date: "19/12/2020"
 output:
   pdf_document: default
   html_document: default
@@ -13,13 +11,15 @@ knitr::opts_chunk$set(echo = TRUE,
                       warning = FALSE)
 ```
 
-On charge les packages `RMark` et `R2ucare`, ce dernier servant à tester les hypothèse des modèles de capture-recapture en population ouverte. 
+# Partie 1 : Estimation de la survie, exemple du cincle plongeur
+
+## Premiers modèles avec des effets temps
+
+On charge les packages `RMark` et `R2ucare`, ce dernier servant à tester les hypothèses des modèles de capture-recapture en population ouverte. 
 ```{r}
 library(RMark)
 library(R2ucare)
 ```
-
-# Partie 1 : Estimation de la survie, exemple du cincle plongeur
 
 Les données.
 ```{r}
@@ -92,6 +92,51 @@ PIMS(phip.cincle,"Phi")
 PIMS(phip.cincle,"p")
 ```
 
+On considère deux autres modèles, avec l'effet temps sur la survie mais pas sur la détection, et inversément. 
+```{r}
+phitp.cincle <- mark(cincle.proc,
+                    cincle.ddl,
+                    model.parameters = list(Phi = phit, p = p))
+phipt.cincle <- mark(cincle.proc,
+                    cincle.ddl,
+                    model.parameters = list(Phi = phi, p = pt))
+```
+
+On affiche la sélection de modèles.
+```{r}
+collect.models()
+```
+
+On a 7 occasions de capture, donc 6 paramètres de survie. La première année de capture dans le jeu de données est 1981, alors on peut estimer la survie entre 1981 et 1982, entre 1982 et 1983 etc. Une inondation eut lieu en 1982 et 1983, avec un effet possible sur la survie. On va comparer les modèles précédents à un modèle incorporant un effet inondation sur les survies sur les intervalles (1982-1983) et (1983-1984). 
+
+Jetons un coup d'oeil à la structure sur la survie.
+```{r}
+cincle.ddl$Phi
+```
+
+On ajoute un effet inondation sur la survie.
+```{r}
+cincle.ddl$Phi$Inondation <- 0
+cincle.ddl$Phi$Inondation[cincle.ddl$Phi$time==2 | cincle.ddl$Phi$time==3] <- 1
+```
+
+On définit l'effet en question, et on fait tourner le modèle correspondant.
+```{r}
+phiinondation <- list(formula=~Inondation)
+phiinondationp.cincle <- mark(cincle.proc,
+                              cincle.ddl,
+                              model.parameters = list(Phi = phiinondation, 
+                                                      p = p))
+
+```
+
+On compare les modèles avec l'AIC.
+```{r}
+collect.models()
+```
+
+## Pour aller plus loin avec les effets de l'environnement
+
 On ajoute les covariables environnementales. 
 ```{r}
 cov.cincle <- readxl::read_xls("dat/covariables-environnementales-cincle-plongeur.xls")
@@ -104,7 +149,7 @@ cov.cincle <- janitor::clean_names(cov.cincle)
 cov.cincle
 ```
 
-On a 7 occasions de capture, donc 6 paramètres de survie. Si on suppose que la première année de capture dans le jeu de données cincle est 1981, alors on peut estimer la survie entre 1981 et 1982, à laquelle on applique la valeur de covariable en 1981, etc... jusqu'à la survie entre 1986 et 1987 à laquelle s'applique la valeur de covariable de 1986, donc on n'a pas besoin de la dernière ligne dans le jeu de données. 
+Pour rappel, on a 7 occasions de capture, donc 6 paramètres de survie. Si on suppose que la première année de capture dans le jeu de données cincle est 1981, alors on peut estimer la survie entre 1981 et 1982, à laquelle on applique la valeur de covariable en 1981, etc... jusqu'à la survie entre 1986 et 1987 à laquelle s'applique la valeur de covariable de 1986, donc on n'a pas besoin de la dernière ligne dans le jeu de données. 
 ```{r}
 cov.cincle <- cov.cincle[!(cov.cincle$annee == "1987"),]
 ```
@@ -114,11 +159,11 @@ Jetons un coup d'oeil à la structure sur la survie.
 cincle.ddl$Phi
 ```
 
-On crée une survie qui depend du débit. 
+On crée une survie qui dépend de la température.
 ```{r}
-cincle.ddl$Phi$debit <- 0 # nv var mise a 0
+cincle.ddl$Phi$temp <- 0 # nv var mise a 0
 for (i in 1:nrow(cov.cincle)){
-   cincle.ddl$Phi$debit[cincle.ddl$Phi$time == i] <- as.numeric(cov.cincle[i, "debit_l_sec"]) 
+   cincle.ddl$Phi$temp[cincle.ddl$Phi$time == i] <- as.numeric(cov.cincle[i, "temperature_hiver_c"])
 }
 ```
 
@@ -127,25 +172,21 @@ On vérifie que ça a marché.
 cincle.ddl$Phi
 ```
 
-Idem pour temperature.
-```{r}
-cincle.ddl$Phi$temp <- 0 # nv var mise a 0
-for (i in 1:nrow(cov.cincle)){
-   cincle.ddl$Phi$temp[cincle.ddl$Phi$time == i] <- as.numeric(cov.cincle[i, "temperature_hiver_c"])
-}
-cincle.ddl$Phi
-```
-
 On définit les effets.
 ```{r}
-phi.debitptemp <- list(formula =~ debit + temp)
+phi.temp <- list(formula =~ temp)
 ```
 
 On ajuste le modèle.
 ```{r}
 phicov.cincle <- mark(cincle.proc,
                       cincle.ddl,
-                      model.parameters = list(Phi = phi.debitptemp, p = p))
+                      model.parameters = list(Phi = phi.temp, p = p))
+```
+
+La sélection de modèles.
+```{r}
+collect.models()
 ```
 
 Les paramètres estimés.
@@ -153,63 +194,130 @@ Les paramètres estimés.
 phicov.cincle$results$real
 ```
 
-Visualisons la relation survie vs. débit pour une valeur moyenne de température. On créé d'abord une grille pour le débit. 
+Visualisons la relation survie vs. température. On créé d'abord une grille pour la température 
 ```{r}
-min.debit <- min(cov.cincle$debit_l_sec)
-max.debit <- max(cov.cincle$debit_l_sec)
-debit.values <- seq(from = min.debit, to = max.debit, by = 5)
-temp.values <- c(quantile(cov.cincle$temperature_hiver_c, 0.05), 
-                  mean(cov.cincle$temperature_hiver_c),
-                  quantile(cov.cincle$temperature_hiver_c, 0.95))
+min.temp <- min(cov.cincle$temperature_hiver_c)
+max.temp <- max(cov.cincle$temperature_hiver_c)
+temp.values <- seq(from = min.temp, to = max.temp, length = 50)
 ```
 
-Construit le jeu de données. 
+On fait la prédiction. Pour cela il nous faut l'ordonnée à l'origine (intercept) et la pente (slope) de l'effet température sur la survie. 
 ```{r}
-pred.dat <- expand.grid(debit = debit.values,
-                        temp = temp.values)
-pred.dat <- cbind(1, pred.dat)
-pred.dat <- as.matrix(pred.dat)
+coef(phicov.cincle)
 ```
 
-On fait la prédiction, sur l'échelle logit.
+On applique la relation aux valeurs de la grille, et on ramène les valeurs obtenues de survie sur l'échelle (0,1).
 ```{r}
-betas.phi <- phicov.cincle$results$beta[1:3,1]
-pred.surv.logit <- pred.dat %*% betas.phi
-```
-
-On back-transforme et on arrange.
-```{r}
-pred.surv <- plogis(pred.surv.logit)
-pred.df <- cbind(pred.dat[,-1], pred.surv)
-colnames(pred.df) <- c("debit", "temp", "survie")
-pred.df <- as.data.frame(pred.df)
-head(pred.df)
-```
-
-On prépare les données. 
-```{r}
-pred.df$temp <- ifelse(pred.df$temp == mean(cov.cincle$temperature_hiver_c),
-                           "temp_moyenne",
-                           ifelse(pred.df$temp == quantile(cov.cincle$temperature_hiver_c, 0.05), 
-                                  "temp_quantile_0.05",
-                                  "temp_quantile_0.95"))
-head(pred.df)
+phi.pred <- plogis(coef(phicov.cincle)[1,1] + coef(phicov.cincle)[2,1] * temp.values)
 ```
 
 On visualise.
 ```{r}
-library(ggplot2)
-ggplot(pred.df, aes(x = debit, y = survie)) +
-   geom_line(aes(color = temp), size = 1.5) +
-   labs(x = "Débit",
-        y = "Survie estimée",
-        color = "température") + 
-    ylim(0, 1) +
-   theme_light()
+plot(x = temp.values, 
+     y = phi.pred, 
+     lwd = 3, 
+     type = 'l', 
+     xlab = "température", 
+     ylab = "probabilité de survie estimée")
+```
+
+On représente maintenant les survies estimées pour les 4 meilleurs modèles, le modèle avec effet de l'inondation, de la température, le modèle avec survie constante et le modèle avec effet du temps sur la survie (la prob de recapture est constante dans les 4 modèles).
+```{r}
+plot(x = 1981:1986, 
+     y = phicov.cincle$results$real[1:6, 1],
+     ylim = c(0,1),
+     xlab = "intervalle de temps (année, année + 1)",
+     ylab = "prob survie estimée",
+     pch = 1)
+points(x = 1981:1986 + 0.1, 
+     y = phitp.cincle$results$real[1:6, 1],
+     pch = 2)
+points(x = 1981:1986 - 0.1, 
+     y = c(phiinondationp.cincle$results$real[1,1], # pas inondation
+           phiinondationp.cincle$results$real[2,1], # inondation
+           phiinondationp.cincle$results$real[2,1], # inondation
+           phiinondationp.cincle$results$real[1,1], # pas inondation
+           phiinondationp.cincle$results$real[1,1], # pas inondation
+           phiinondationp.cincle$results$real[1,1]), # pas inondation
+     pch = 3)
+legend("bottomright", 
+       legend = c("phi(temperature)",
+                  "phi(temps)",
+                  "phi(inondation)"),
+       pch = c(1,2,3))
+```
+
+
+## Effet de l'âge
+
+On définit l'effet âge (temps écoulé depuis la première capture). 
+```{r}
+phi.age <- list(formula =~ age)
+```
+
+On ajuste le modèle.
+```{r}
+phiage.cincle <- mark(cincle.proc,
+                      cincle.ddl,
+                      model.parameters = list(Phi = phi.age, 
+                                              p = p))
+```
+
+La sélection de modèles.
+```{r}
+collect.models()
+```
+
+Les paramètres estimés.
+```{r}
+phiage.cincle$results$real
+```
+
+Ici l'effet d'âge est plein, autrement dit on estime une probabilité de survie pour chaque classe d'âge. On peut contraindre cet effet à un effet jeune (survie qui dure une année de 0 à 1 an) vs. adulte (la même survie pour les individus au-delà d'1 an).
+
+Pour ce faire, on ajoute une variable ageclass. 
+```{r}
+# create 0, 1+ age variable
+cincle.ddl <- add.design.data(cincle.proc,
+                              cincle.ddl, 
+                             "Phi",
+                             type = "age",
+                             bins = c(0, 1, 7), # 2 classes d'âge
+                             name = "ageclass",
+                             right = FALSE)
+```
+
+Jetons un coup d'oeil.
+```{r}
+cincle.ddl$Phi
+```
+
+On spécifie une survie qui dépend de l'âge.
+```{r}
+phi.age2 <- list(formula=~ageclass) # age effect on survival
+```
+
+On ajuste le modèle avec survie âge-dépendante et prob de recapture constante.
+```{r}
+phiage2.cincle <- mark(cincle.proc,
+                        cincle.ddl,
+                        model.parameters = list(Phi = phi.age2, p = p))
+phiage2.cincle$results$real
+```
+
+Que donne la sélection de modèles?
+```{r}
+collect.models()
 ```
 
 
 # Partie 2 : Estimation de la survie, exemple du martinet noir
+
+On remet les compteurs à 0.
+```{r}
+rm(list = ls())
+```
+
 
 Les données.
 ```{r}
@@ -313,6 +421,12 @@ PIM pour survie et détection dans le gros modèle.
 PIMS(gros.mod,"Phi")
 PIMS(gros.mod,"p")
 ```
+
+La sélection de modèles.
+```{r}
+collect.models()
+```
+
 
 # Partie 3 : Hypothèses des modèles de capture-recapture, hétérogénéité et tests d'ajustement
 
