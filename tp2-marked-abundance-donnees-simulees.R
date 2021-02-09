@@ -1,0 +1,346 @@
+#' ---
+#' title: "TP 2 estimation des effectifs en populations fermées avec données simulées"
+
+#' 
+#' On charge le package `RMark` qui appelle le logiciel Mark depuis `R`. On charge aussi le package `secr` qui permet d'implémenter le test de `closure`.
+## -------------------------------------------------------------------------
+library(RMark)
+library(secr)
+
+#' 
+#' # Simulation des données
+#' 
+#' On construit une fonction qui va nous permettre de simuler des données selon une population fermée avec un certain nombre d'occasions, deux groupes (mâles et femelles par exemple), un effet du comportement sur la détection, et des effets temps.
+## -------------------------------------------------------------------------
+sim.closedCR <- function(n_ind, n_occ, prob_first_capt, prob_recapt, filename){
+  # if one group only
+  if (length(prob_first_capt) == 1 & length(prob_recapt) == 1){
+  y <- matrix(0, nrow = n_ind, ncol = n_occ)
+              for (i in 1:n_ind){
+                for (j in 1:n_occ){
+                  # if first occasion of the study, then apply prob_first_capt
+                  if (j == 1) y[i,j] <- rbinom(1, 1, prob_first_capt)
+                  # if not first occasion of the study, and no previous capture, then apply prob_first_capt
+                  if (j > 1 & sum(y[i, 1:(j-1)]) == 0) y[i,j] <- rbinom(1, 1, prob_first_capt)
+                  # if not first occasion of the study, and a previous capture occurred, then apply prob_recapt
+                  if (j > 1 & sum(y[i, 1:(j-1)]) > 0) y[i,j] <- rbinom(1, 1, prob_recapt)
+                }
+              }
+              # get rid of individuals never captured
+              mat <- data.frame(ch = y[apply(y, 1, sum) > 0,])
+              res <- paste0(as.vector(t(tidyr::unite(mat, col = "ch", sep = ""))), " 1;")
+              write.table(res, 
+                          row.names = FALSE,
+                          col.names = FALSE,
+                          quote = FALSE,
+                          file = filename)
+  }
+  # if one group only
+  if (length(prob_first_capt) > 1 | length(prob_recapt) > 1){
+  # group 1
+  y <- matrix(0, nrow = n_ind[1], ncol = n_occ)
+              for (i in 1:n_ind[1]){
+                for (j in 1:n_occ){
+                  # if first occasion of the study, then apply prob_first_capt
+                  if (j == 1) y[i,j] <- rbinom(1, 1, prob_first_capt[1])
+                  # if not first occasion of the study, and no previous capture, then apply prob_first_capt
+                  if (j > 1 & sum(y[i, 1:(j-1)]) == 0) y[i,j] <- rbinom(1, 1, prob_first_capt[1])
+                  # if not first occasion of the study, and a previous capture occurred, then apply prob_recapt
+                  if (j > 1 & sum(y[i, 1:(j-1)]) > 0) y[i,j] <- rbinom(1, 1, prob_recapt[1])
+                }
+              }
+  y1 <- y
+  # group 2
+  y <- matrix(0, nrow = n_ind[2], ncol = n_occ)
+              for (i in 1:n_ind[2]){
+                for (j in 1:n_occ){
+                  # if first occasion of the study, then apply prob_first_capt
+                  if (j == 1) y[i,j] <- rbinom(1, 1, prob_first_capt[2])
+                  # if not first occasion of the study, and no previous capture, then apply prob_first_capt
+                  if (j > 1 & sum(y[i, 1:(j-1)]) == 0) y[i,j] <- rbinom(1, 1, prob_first_capt[2])
+                  # if not first occasion of the study, and a previous capture occurred, then apply prob_recapt
+                  if (j > 1 & sum(y[i, 1:(j-1)]) > 0) y[i,j] <- rbinom(1, 1, prob_recapt[2])
+                }
+              }
+  y2 <- y
+  # get rid of individuals never captured
+  mat1 <- data.frame(ch = y1[apply(y1, 1, sum) > 0,])
+  mat2 <- data.frame(ch = y2[apply(y2, 1, sum) > 0,])
+  res1 <- paste0(as.vector(t(tidyr::unite(mat1, col = "ch", sep = ""))), " 1 0;")
+  res2 <- paste0(as.vector(t(tidyr::unite(mat2, col = "ch", sep = ""))), " 0 1;")
+  res <- c(res1, res2)
+  write.table(res, 
+              row.names = FALSE,
+              col.names = FALSE,
+              quote = FALSE,
+              file = filename)
+  }
+res
+}
+
+#' 
+#' Simulation avec un groupe.
+## -------------------------------------------------------------------------
+sim.closedCR(n_ind = 500, 
+             n_occ = 6, 
+             prob_first_capt = 0.7, 
+             prob_recapt = 0.2, 
+             filename = "dat/sim.un.groupe.inp")
+
+#' 
+#' Simulation avec deux groupes.
+## -------------------------------------------------------------------------
+sim.closedCR(n_ind = c(200, 300), 
+             n_occ = 6, 
+             prob_first_capt = c(0.7, 0.7), 
+             prob_recapt = c(0.2, 0.6),
+             filename = "dat/sim.deux.groupes.inp")
+
+#' 
+#' # Ajustement un groupe
+#' 
+#' ## Package
+#' 
+## -------------------------------------------------------------------------
+library(RMark)
+
+#' 
+#' ## Lecture et formatage des données
+#' 
+#' On commence par lire les données qui se trouvent dans le répertoire dat/
+## -------------------------------------------------------------------------
+mouse <- convert.inp("dat/sim.un.groupe.inp",
+                    group.df = NULL,
+                    covariates = NULL)
+
+#' 
+#' On regarde les 10 premières lignes du fichier. 
+## -------------------------------------------------------------------------
+head(mouse)
+
+#' 
+#' Les 10 dernières lignes.
+## -------------------------------------------------------------------------
+tail(mouse)
+
+#' 
+#' On fait les tests de fermeture. Pour cela, il nous faut d'abord convertir les données au format requis pour utiliser le package secr qui fait ces tests. Le formatage consiste à mettre un espace entre les colonnes de capture. 
+## -------------------------------------------------------------------------
+library(secr)
+mouse_secr <- unRMarkInput(mouse)
+
+#' 
+#' On peut utiliser la fonction summary de R pour obtenir un résumé des données. 
+## -------------------------------------------------------------------------
+summary(mouse_secr)
+
+#' 
+#' ## Test de l'hypothèse de fermeture
+#' 
+#' On fait enfin les tests. Par défaut, seul le test d'Otis est fait. En rajoutant l'option "SB = TRUE", on fait aussi le test de Stanley et Burnham. 
+## -------------------------------------------------------------------------
+closure.test(mouse_secr, SB = TRUE)
+
+#' 
+#' ## Une première série de modèles
+#' 
+#' Pour utiliser RMark, on passe par 3 étapes : la préparation des données, la définition des modèles et l'ajustement à proprement parler. 
+#' 
+#' On commence par préparer les données. 
+## -------------------------------------------------------------------------
+mouse.proc <- process.data(mouse, 
+                           begin.time = 1, 
+                           model = "FullHet")
+mouse.ddl <- make.design.data(mouse.proc)
+
+#' 
+#' On définit les modèles que l'on souhaite ajuster grâce à une fonction R qui fait 3 choses : spéficication des effets, création d'une liste des modèles à ajuster et préparation pour envoi à Mark. Par défaut, Mark considère un effet comportement et distingue une probabilité de capture c et une autre de recapture p. On utilise "share = TRUE" pour fusionner ces deux paramètres en une seule probabilité de capture. 
+## -------------------------------------------------------------------------
+run.mouse <- function() {
+
+## On specifie les effets
+  
+  # M0 : p constant dans le temps
+  p.dot <- list(formula =  ~ 1, share = TRUE)
+  # Mb : p (recapture) different de c (premiere capture) et constants dans le temps 
+  p.dot.behav <- list(formula =  ~ 1)
+  # Mt : p varie selon la session (dans le temps)
+  p.time <- list(formula =  ~ time, share = TRUE)
+  # Mh : p est heterogene entre individu
+  p.h <- list(formula = ~ mixture, share = TRUE)
+  # Mtb
+  p.time.behav <- list(formula =  ~ time)
+  # Mbh
+  p.h.behav <- list(formula =  ~ mixture)
+  # Mth
+  p.h.time <- list(formula = ~ time + mixture, share = TRUE)
+  # Mtbh
+  p.h.time.behav <- list(formula =  ~ mixture + time)
+
+## On construit la liste des modeles
+  mouse.model.list <- create.model.list("FullHet")
+  
+## On prépare le tout pour envoi a Mark
+  mouse.results <- mark.wrapper(mouse.model.list,
+                              data = mouse.proc, 
+                              ddl = mouse.ddl)
+                              
+## On retourne les resultats
+  return(mouse.results)
+}
+
+#' 
+#' On fait tourner tous les modèles d'un coup. 
+## -------------------------------------------------------------------------
+mouse.results <- run.mouse()
+
+#' 
+#' On examine les résultats. 
+## -------------------------------------------------------------------------
+mouse.results
+
+#' 
+#' Le nom des modèles n'est pas limpide. On fait le lien entre la première colonne qui donne le numéro du modèle, et la liste des modèles qu'on a définie au-dessus. 
+## -------------------------------------------------------------------------
+names(mouse.results)
+
+#' 
+#' Par exemple, si l'on veut afficher les résultats du modèle $M_0$, il s'agit du modèle 1 "p.dot". On peut afficher la probabilité de détection avec l'intervalle de confiance associé. Ce sont exactement les valeurs utilisées pour simuler les données. 
+## -------------------------------------------------------------------------
+mouse.results$p.dot.behav$results$real
+
+#' 
+#' On obtient aussi une estimation de l'effectif. Pile sur la cible!
+## -------------------------------------------------------------------------
+mouse.results$p.dot.behav$results$derived
+
+#' 
+#' 
+#' 
+#' 
+#' # Ajustement deux groupes
+#' 
+#' ## Lecture et formatage des données
+#' 
+#' On commence par lire les données qui se trouvent dans le répertoire dat/
+## -------------------------------------------------------------------------
+mouse <- convert.inp("dat/sim.deux.groupes.inp",
+                    group.df = data.frame(sex = c("M","F")),
+                    covariates = NULL)
+
+#' 
+#' On regarde les 10 premières lignes du fichier. 
+## -------------------------------------------------------------------------
+head(mouse)
+
+#' 
+#' Les 10 dernières lignes.
+## -------------------------------------------------------------------------
+tail(mouse)
+
+#' 
+#' On fait les tests de fermeture. Pour cela, il nous faut d'abord convertir les données au format requis pour utiliser le package secr qui fait ces tests. Le formatage consiste à mettre un espace entre les colonnes de capture. 
+## -------------------------------------------------------------------------
+library(secr)
+mouse_secr <- unRMarkInput(mouse)
+
+#' 
+#' On peut utiliser la fonction summary de R pour obtenir un résumé des données. 
+## -------------------------------------------------------------------------
+summary(mouse_secr)
+
+#' 
+#' ## Test de l'hypothèse de fermeture
+#' 
+#' On fait enfin les tests. Par défaut, seul le test d'Otis est fait. En rajoutant l'option "SB = TRUE", on fait aussi le test de Stanley et Burnham. 
+## -------------------------------------------------------------------------
+closure.test(mouse_secr, SB = TRUE)
+
+#' 
+#' ## Modèles avec le sexe
+#' 
+#' Pour utiliser RMark, on passe par 3 étapes : la préparation des données, la définition des modèles et l'ajustement à proprement parler. 
+#' 
+#' On commence par préparer les données. 
+## -------------------------------------------------------------------------
+mouse.proc <- process.data(mouse, 
+                           begin.time = 1, 
+                           model = "FullHet",
+                           groups = "sex")
+mouse.ddl <- make.design.data(mouse.proc)
+
+#' 
+#' On définit les modèles que l'on souhaite ajuster grâce à une fonction R qui fait 3 choses : spéficication des effets, création d'une liste des modèles à ajuster et préparation pour envoi à Mark. Par défaut, Mark considère un effet comportement et distingue une probabilité de capture c et une autre de recapture p. On utilise "share = TRUE" pour fusionner ces deux paramètres en une seule probabilité de capture. 
+## -------------------------------------------------------------------------
+run.mouse <- function() {
+
+## On specifie les effets
+  
+  # M0 : p constant dans le temps
+  p.dot <- list(formula =  ~ 1, share = TRUE)
+  # Mb : p (recapture) different de c (premiere capture) et constants dans le temps 
+  p.dot.behav <- list(formula =  ~ 1)
+  # Mt : p varie selon la session (dans le temps)
+  p.time <- list(formula =  ~ time, share = TRUE)
+  # Mh : p est heterogene entre individu
+  p.h <- list(formula = ~ mixture, share = TRUE)
+  # Mtb
+  p.time.behav <- list(formula =  ~ time)
+  # Mbh
+  p.h.behav <- list(formula =  ~ mixture)
+  # Mth
+  p.h.time <- list(formula = ~ time + mixture, share = TRUE)
+  # Mtbh
+  p.h.time.behav <- list(formula =  ~ mixture + time)
+  # Mbsex - modele selon lequel on a simule les donnees
+  p.sex.behav <- list(p = list(formula = ~ sex),
+                      c = list(formula = ~ sex))
+
+## On construit la liste des modeles
+  mouse.model.list <- create.model.list("FullHet")
+  
+## On prépare le tout pour envoi a Mark
+  mouse.results <- mark.wrapper(mouse.model.list,
+                              data = mouse.proc, 
+                              ddl = mouse.ddl)
+                              
+## On retourne les resultats
+  return(mouse.results)
+}
+
+#' 
+#' On fait tourner tous les modèles d'un coup. 
+## -------------------------------------------------------------------------
+mouse.results <- run.mouse()
+
+#' 
+#' On examine les résultats. 
+## -------------------------------------------------------------------------
+mouse.results
+
+#' 
+#' Le nom des modèles n'est pas limpide. On fait le lien entre la première colonne qui donne le numéro du modèle, et la liste des modèles qu'on a définie au-dessus. 
+## -------------------------------------------------------------------------
+names(mouse.results)
+
+#' 
+#' Par exemple, si l'on veut afficher les résultats du modèle $M_0$, il s'agit du modèle 1 "p.dot". On peut afficher la probabilité de détection avec l'intervalle de confiance associé. On retrouve les valeurs utilisées pour simuler les données. 
+## -------------------------------------------------------------------------
+mouse.results$p.sex.behav$results$real
+
+#' 
+#' On obtient aussi une estimation de l'effectif. Pile sur la cible!
+## -------------------------------------------------------------------------
+mouse.results$p.sex.behav$results$derived
+
+#' 
+#' 
+#' # Nettoyage
+#' 
+#' On supprime les fichiers temporaires. 
+#' 
+## -------------------------------------------------------------------------
+rm(list = ls(all = TRUE))
+cleanup(ask = FALSE)
+
+#' 
