@@ -1,0 +1,10 @@
+TP1 estim taille pops - CMR (ex iguane avec MARK-Capture)
+
+TP2 estim taille pops - presence-absence (ex lezard ocellé)
+
+TP estimation param survie par CMR (logiciel Mark) (ex cincle)
+
+TP estimation param survie par CMR (logiciel Mark) (ex groupe martinet)
+
+TP estimation param survie par CMR - GOF tests (logiciel U-Care) + TP cycles de vie 
+
